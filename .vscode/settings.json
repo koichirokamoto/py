@@ -1,0 +1,11 @@
+{
+  "python.pythonPath": "${env.CONDA_PREFIX}/bin/python",
+  "python.jediEnabled": false,
+  "python.linting.pylintPath": "${env.CONDA_PREFIX}/bin/pylint",
+  "python.formatting.provider": "yapf",
+  "python.formatting.yapfPath": "${env.CONDA_PREFIX}/bin/yapf",
+  "python.formatting.yapfArgs": [
+    "--style",
+    "{based_on_style: google, indent_width: 2}"
+  ]
+}
