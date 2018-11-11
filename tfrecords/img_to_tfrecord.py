@@ -67,7 +67,9 @@ def read_file(filename, mode='pillow'):
     load_img = lambda filename: keras.preprocessing.image.load_img(
           filename, target_size=(FLAGS.height, FLAGS.width))
   else:
-    load_img = lambda filename: Image.fromarray(cv2.resize(cv2.imread(filename), (FLAGS.height, FLAGS.width)))
+    img = cv2.imread(filename)
+    img = cv2.resize(img, (FLAGS.height, FLAGS.width))
+    load_img = lambda filename: Image.fromarray(cv2.cvtColor(img,cv2.COLOR_BGR2RGB))
   image = load_img(filename)
   arr = keras.preprocessing.image.img_to_array(image)
   return arr / 255.0
