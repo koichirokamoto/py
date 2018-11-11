@@ -104,11 +104,16 @@ class WriteTFRecord(beam.PTransform):
                 tf.train.Feature(bytes_list=tf.train.BytesList(value=[image])),
                 'label':
                 tf.train.Feature(int64_list=tf.train.Int64List(value=[label]))
-            })).SerializeToString()
+            }))
+
+  def write_tfrecord(self, example):
+    filename = os.path.join(self._dest, 'ok-{}.tfrecord'.format(time.time()))
+    with tf.python_io.TFRecordWriter(filename) as w:
+      w.write(example.SerializeToString())
 
   def expand(self, pcoll):
-    return (pcoll | 'make example' >> beam.Map(self.make_example) | 'write tfrecord'
-            >> beam.io.WriteToTFRecord(os.path.join(self._dest, 'ok'), file_name_suffix='.tfrecord'))
+    return (pcoll | 'make example' >> beam.Map(self.make_example) |
+            'write tfrecord' >> beam.Map(self.write_tfrecord))
 
 
 def main(_):
