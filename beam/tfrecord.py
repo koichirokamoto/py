@@ -1,10 +1,11 @@
-# conding: utf-8
+# coding: utf-8
 """Beam pipeline convert TF Record to image."""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from io import BytesIO
 import os
 import time
 
@@ -13,6 +14,8 @@ import apache_beam as beam
 from apache_beam import Pipeline
 from apache_beam.options.pipeline_options import PipelineOptions, StandardOptions
 import cv2
+from keras_preprocessing.image import load_img, img_to_array
+import numpy as np
 import tensorflow as tf
 
 # It's necessary because runtime error raise in apache beam.
@@ -116,7 +119,7 @@ class WriteTFRecord(beam.PTransform):
             'write tfrecord' >> beam.Map(self.write_tfrecord))
 
 
-def main(_):
+def main():
   try:
     os.makedirs(FLAGS.dest)
   except IOError:
@@ -129,7 +132,7 @@ def main(_):
      'save image' >> MySaver(dest=FLAGS.dest))
 
 
-def bgrmain(_):
+def bgrmain():
   try:
     os.makedirs(FLAGS.dest)
   except IOError:
@@ -142,15 +145,58 @@ def bgrmain(_):
      'write tfrecord' >> WriteTFRecord(FLAGS.dest))
 
 
+def image2tfrecord():
+
+  def mk(filename):
+    img = load_img(filename, target_size=(224, 224))
+    arr = img_to_array(img)
+    arr /= 255.0
+    label = 1
+    return tf.train.Example(
+        features=tf.train.Features(
+            feature={
+                'image':
+                tf.train.Feature(
+                    bytes_list=tf.train.BytesList(value=[arr.tobytes()])),
+                'label':
+                tf.train.Feature(int64_list=tf.train.Int64List(value=[label]))
+            }))
+
+  def write_tfrecord(example):
+    filename = os.path.join(FLAGS.dest, 'ok-{}.tfrecord'.format(time.time()))
+    with tf.python_io.TFRecordWriter(filename) as w:
+      w.write(example.SerializeToString())
+
+  try:
+    os.makedirs(FLAGS.dest)
+  except IOError:
+    pass
+  files = tf.gfile.Glob(FLAGS.pattern)
+  options = PipelineOptions()
+  options.view_as(StandardOptions).runner = 'DirectRunner'
+  with beam.Pipeline(options=options) as p:
+    (p | 'create file names' >> beam.Create(files) |
+     'make example' >> beam.Map(mk) |
+     'write tfrecord' >> beam.Map(write_tfrecord))
+
+
 def define_flags():
   flags.DEFINE_string(
       name='pattern', help='TF Rercord file name pattren', default='*.tfrecord')
   flags.DEFINE_string(
       name='dest', help='Destination direcoty of parsed image', default=None)
   flags.DEFINE_list(name='shape', help='Shape of image', default=[224, 224, 3])
+  flags.DEFINE_enum(
+      name='main',
+      help='Main functions',
+      enum_values=['main', 'bgrmain', 'image2tfrecord'],
+      default='main')
 
+def run(_):
+  m = globals()[FLAGS.main]
+  m()
 
 if __name__ == '__main__':
   define_flags()
   FLAGS = flags.FLAGS
-  app.run(bgrmain)
+  app.run(run)
