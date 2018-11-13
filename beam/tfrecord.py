@@ -7,6 +7,7 @@ from __future__ import print_function
 
 from io import BytesIO
 import os
+import random
 import time
 
 from absl import app, flags
@@ -27,6 +28,12 @@ features = {
     'image': tf.FixedLenFeature((), tf.string, default_value=''),
     'label': tf.FixedLenFeature((), tf.int64, default_value=0)
 }
+
+seed = random.seed(int(time.time()))
+
+
+def create_filename(prefix):
+  return '{}-{}-{}.tfrecord'.format(prefix, time.time(), random.random())
 
 
 class MyParser(transform.ParseTFRecord):
@@ -110,7 +117,7 @@ class WriteTFRecord(beam.PTransform):
             }))
 
   def write_tfrecord(self, example):
-    filename = os.path.join(self._dest, 'ok-{}.tfrecord'.format(time.time()))
+    filename = os.path.join(self._dest, create_filename('ok'))
     with tf.python_io.TFRecordWriter(filename) as w:
       w.write(example.SerializeToString())
 
@@ -151,7 +158,10 @@ def image2tfrecord():
     img = load_img(filename, target_size=(224, 224))
     arr = img_to_array(img)
     arr /= 255.0
-    label = 1
+    if 'fc2' in filename:
+      label = 1
+    else:
+      label = 0
     return tf.train.Example(
         features=tf.train.Features(
             feature={
@@ -163,7 +173,7 @@ def image2tfrecord():
             }))
 
   def write_tfrecord(example):
-    filename = os.path.join(FLAGS.dest, 'ok-{}.tfrecord'.format(time.time()))
+    filename = os.path.join(FLAGS.dest, create_filename('ok'))
     with tf.python_io.TFRecordWriter(filename) as w:
       w.write(example.SerializeToString())
 
@@ -192,9 +202,11 @@ def define_flags():
       enum_values=['main', 'bgrmain', 'image2tfrecord'],
       default='main')
 
+
 def run(_):
   m = globals()[FLAGS.main]
   m()
+
 
 if __name__ == '__main__':
   define_flags()
