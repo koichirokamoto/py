@@ -18,6 +18,7 @@ from apache_beam.options.pipeline_options import PipelineOptions, StandardOption
 import cv2
 from keras_preprocessing.image import load_img, img_to_array
 import numpy as np
+from PIL import Image
 import tensorflow as tf
 
 # It's necessary because runtime error raise in apache beam.
@@ -56,7 +57,7 @@ class MyParser(transform.ParseTFRecord):
 class CropParser(transform.ParseTFRecord):
 
   def __init__(self, features=None, shape=None, dtype=tf.float32, label=None):
-    super(RotateParser, self).__init__(
+    super(CropParser, self).__init__(
         features=features, shape=shape, dtype=dtype, label=label)
 
   def decode_tensor(self, tensor_dict):
@@ -177,7 +178,7 @@ def image2tfrecord():
     img = load_img(filename, target_size=(224, 224))
     arr = img_to_array(img)
     arr /= 255.0
-    if 'ok' in filename:
+    if 'ok-' in filename:
       label = 1
     else:
       label = 0
