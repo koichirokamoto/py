@@ -6,6 +6,7 @@ from __future__ import division
 from __future__ import print_function
 
 from io import BytesIO
+import math
 import os
 import random
 import time
@@ -52,6 +53,23 @@ class MyParser(transform.ParseTFRecord):
     return tensor_dict
 
 
+class CropParser(transform.ParseTFRecord):
+
+  def __init__(self, features=None, shape=None, dtype=tf.float32, label=None):
+    super(RotateParser, self).__init__(
+        features=features, shape=shape, dtype=dtype, label=label)
+
+  def decode_tensor(self, tensor_dict):
+    image = tensor_dict['image']
+    image = tf.decode_raw(image, self._dtype)
+    image = tf.reshape(image, self._shape)
+    image = tf.random_crop(image, [180, 180, 3])
+    image = tf.image.resize_image_with_crop_or_pad(image, 224, 224)
+    tensor_dict['image'] = image.numpy()
+    tensor_dict['label'] = 0
+    return tensor_dict
+
+
 class MySaver(transform.WriteImage):
 
   def __init__(self, dest=None, label=None):
@@ -90,8 +108,9 @@ class BGRParser(transform.ParseTFRecord):
 
 class WriteTFRecord(beam.PTransform):
 
-  def __init__(self, dest=None, label=None):
+  def __init__(self, prefix='ok', dest=None, label=None):
     super(WriteTFRecord, self).__init__(label=label)
+    self._prefix = prefix
     self._dest = dest
 
   def make_example(self, tensor_dict):
@@ -117,7 +136,7 @@ class WriteTFRecord(beam.PTransform):
             }))
 
   def write_tfrecord(self, example):
-    filename = os.path.join(self._dest, create_filename('ok'))
+    filename = os.path.join(self._dest, create_filename(self._prefix))
     with tf.python_io.TFRecordWriter(filename) as w:
       w.write(example.SerializeToString())
 
@@ -158,7 +177,7 @@ def image2tfrecord():
     img = load_img(filename, target_size=(224, 224))
     arr = img_to_array(img)
     arr /= 255.0
-    if 'fc2' in filename:
+    if 'ok' in filename:
       label = 1
     else:
       label = 0
@@ -190,6 +209,19 @@ def image2tfrecord():
      'write tfrecord' >> beam.Map(write_tfrecord))
 
 
+def cropaug():
+  try:
+    os.makedirs(FLAGS.dest)
+  except IOError:
+    pass
+  options = PipelineOptions()
+  options.view_as(StandardOptions).runner = 'DirectRunner'
+  with beam.Pipeline(options=options) as p:
+    (p | 'read tfrecord by pattern' >> beam.io.ReadFromTFRecord(FLAGS.pattern) |
+     'process image' >> RotateParser(features=features, shape=FLAGS.shape) |
+     'write tfrecord' >> WriteTFRecord(prefix='ng', dest=FLAGS.dest))
+
+
 def define_flags():
   flags.DEFINE_string(
       name='pattern', help='TF Rercord file name pattren', default='*.tfrecord')
@@ -199,7 +231,7 @@ def define_flags():
   flags.DEFINE_enum(
       name='main',
       help='Main functions',
-      enum_values=['main', 'bgrmain', 'image2tfrecord'],
+      enum_values=['main', 'bgrmain', 'image2tfrecord', 'cropaug'],
       default='main')
 
 
