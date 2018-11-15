@@ -180,22 +180,29 @@ def image2tfrecord():
     arr /= 255.0
     if 'ok-' in filename:
       label = 1
+      exfilename = os.path.join(FLAGS.dest, create_filename('ok'))
     else:
-      label = 0
-    return tf.train.Example(
-        features=tf.train.Features(
-            feature={
-                'image':
-                tf.train.Feature(
-                    bytes_list=tf.train.BytesList(value=[arr.tobytes()])),
-                'label':
-                tf.train.Feature(int64_list=tf.train.Int64List(value=[label]))
-            }))
+      label = -1
+      exfilename = os.path.join(FLAGS.dest, create_filename('ng'))
+    return {
+        'example':
+        tf.train.Example(
+            features=tf.train.Features(
+                feature={
+                    'image':
+                    tf.train.Feature(
+                        bytes_list=tf.train.BytesList(value=[arr.tobytes()])),
+                    'label':
+                    tf.train.Feature(
+                        int64_list=tf.train.Int64List(value=[label]))
+                })),
+        'filename':
+        exfilename
+    }
 
-  def write_tfrecord(example):
-    filename = os.path.join(FLAGS.dest, create_filename('ok'))
-    with tf.python_io.TFRecordWriter(filename) as w:
-      w.write(example.SerializeToString())
+  def write_tfrecord(d):
+    with tf.python_io.TFRecordWriter(d['filename']) as w:
+      w.write(d['example'].SerializeToString())
 
   try:
     os.makedirs(FLAGS.dest)
